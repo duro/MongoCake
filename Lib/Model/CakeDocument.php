@@ -4,6 +4,7 @@ use Doctrine\ODM\MongoDB\UnitOfWork;
 
 App::uses('ConnectionManager', 'Model');
 App::uses('Validation', 'Utility');
+App::uses('ModelValidator', 'Model');
 
 /**
  * This class is meant to be an almost API compatible replacement for the 
@@ -128,6 +129,13 @@ abstract class CakeDocument implements ArrayAccess {
  * @var array
  */
 	protected $_schema = array();
+	
+/**
+ * Instance of the ModelValidator
+ *
+ * @var ModelValidator
+ */
+	protected $_validator = null;
 
 /**
  * Magic method to proxy calls to special finder methods when called as static functions
@@ -508,6 +516,14 @@ abstract class CakeDocument implements ArrayAccess {
 	public function beforeValidate($options = array()) {
 		return true;
 	}
+	
+/**
+ * Called after data has been checked for errors
+ *
+ * @return void
+ */
+	public function afterValidate() {
+	}
 
 /**
  * Returns true if all fields pass validation.
@@ -519,8 +535,7 @@ abstract class CakeDocument implements ArrayAccess {
  * @link http://book.cakephp.org/view/1182/Validating-Data-from-the-Controller
  */
 	public function validates($options = array()) {
-		$errors = $this->invalidFields($options);
-		return empty($errors);
+		return $this->validator()->validates($options);
 	}
 
 /**
@@ -531,131 +546,7 @@ abstract class CakeDocument implements ArrayAccess {
  * @link http://book.cakephp.org/view/1182/Validating-Data-from-the-Controller
  */
 	public function invalidFields($options = array()) {
-		//TODO: Add behaviors support
-		if ($this->beforeValidate($options) === false) {
-			return false;
-		}
-
-		if (!isset($this->validate) || empty($this->validate)) {
-			return $this->validationErrors;
-		}
-
-		$exists = $this->exists();
-		$_validate = $this->validate;
-		$whitelist = $this->whitelist;
-		$methods = get_class_methods($this);
-
-		if (!empty($options['fieldList'])) {
-			$whitelist = $options['fieldList'];
-		}
-
-		if (!empty($whitelist)) {
-			$validate = array();
-			foreach ((array)$whitelist as $f) {
-				if (!empty($this->validate[$f])) {
-					$validate[$f] = $this->validate[$f];
-				}
-			}
-			$this->validate = $validate;
-		}
-
-		foreach ($this->validate as $fieldName => $ruleSet) {
-			if (!is_array($ruleSet) || (is_array($ruleSet) && isset($ruleSet['rule']))) {
-				$ruleSet = array($ruleSet);
-			}
-			$default = array(
-				'allowEmpty' => null,
-				'required' => null,
-				'rule' => 'blank',
-				'last' => true,
-				'on' => null
-			);
-
-			foreach ($ruleSet as $index => $validator) {
-				if (!is_array($validator)) {
-					$validator = array('rule' => $validator);
-				}
-				$validator = array_merge($default, $validator);
-
-				$validationDomain = $this->validationDomain;
-				if (empty($validationDomain)) {
-					$validationDomain = 'default';
-				}
-				if (isset($validator['message'])) {
-					$message = $validator['message'];
-				} else {
-					$message = __d('cake_dev', 'This field cannot be left blank');
-				}
-
-				$value = $this->{$fieldName};
-				if (
-					empty($validator['on']) || ($validator['on'] == 'create' &&
-					!$exists) || ($validator['on'] == 'update' && $exists
-				)) {
-					$required = (
-						(!isset($value) && $validator['required'] === true) ||
-						(
-							isset($value) && (empty($value) &&
-							!is_numeric($value)) && $validator['allowEmpty'] === false
-						)
-					);
-
-					if ($required) {
-						$this->invalidate($fieldName, __d($validationDomain, $message));
-						if ($validator['last']) {
-							break;
-						}
-					} elseif (!is_null($value)) {
-						if (empty($value) && $value != '0' && $validator['allowEmpty'] === true) {
-							break;
-						}
-						if (is_array($validator['rule'])) {
-							$rule = $validator['rule'][0];
-							unset($validator['rule'][0]);
-							$ruleParams = array_merge(array($value), array_values($validator['rule']));
-						} else {
-							$rule = $validator['rule'];
-							$ruleParams = array($value);
-						}
-
-						$valid = true;
-
-						if (in_array($rule, $methods)) {
-							$ruleParams[] = $validator;
-							$ruleParams[0] = array($fieldName => $ruleParams[0]);
-							$valid = call_user_func_array(array($this, $rule), $ruleParams);
-						} elseif (method_exists('Validation', $rule)) {
-							$valid = call_user_func_array(array('Validation', $rule), $ruleParams);
-						} elseif (!is_array($validator['rule'])) {
-							$valid = preg_match($rule, $value);
-						} elseif (Configure::read('debug') > 0) {
-							trigger_error(__d('cake_dev', 'Could not find validation handler %s for %s', $rule, $fieldName), E_USER_WARNING);
-						}
-
-						if (!$valid || (is_string($valid) && strlen($valid) > 0)) {
-							if (is_string($valid) && strlen($valid) > 0) {
-								$validator['message'] = $valid;
-							} elseif (!isset($validator['message'])) {
-								if (is_string($index)) {
-									$validator['message'] = $index;
-								} elseif (is_numeric($index) && count($ruleSet) > 1) {
-									$validator['message'] = $index + 1;
-								} else {
-									$validator['message'] = __d($validationDomain, $message);
-								}
-							}
-							$this->invalidate($fieldName, $validator['message']);
-
-							if ($validator['last']) {
-								break;
-							}
-						}
-					}
-				}
-			}
-		}
-		$this->validate = $_validate;
-		return $this->validationErrors;
+		return $this->validator()->errors($options);
 	}
 
 /**
@@ -667,10 +558,7 @@ abstract class CakeDocument implements ArrayAccess {
  *    be returned. If no validation key is provided, defaults to true.
  */
 	public function invalidate($field, $value = true) {
-		if (!is_array($this->validationErrors)) {
-			$this->validationErrors = array();
-		}
-		$this->validationErrors[$field][]= $value;
+		$this->validator()->invalidate($field, $value);
 	}
 
 /**
@@ -1154,6 +1042,23 @@ abstract class CakeDocument implements ArrayAccess {
 		$day = empty($date['Y']) ? null : $date['Y'] . '-' . $date['m'] . '-' . $date['d'] . ' ';
 		$hour = empty($date['H']) ? null : $date['H'] . ':' . $date['i'] . ':' . $date['s'];
 		return new DateTime($day . $hour);
+	}
+
+/**
+ * Retunrs an instance of a model validator for this class
+ *
+ * @return ModelValidator
+ */
+	public function validator($instance = null) {
+		if ($instance instanceof ModelValidator) {
+			return $this->_validator = $instance;
+		}
+
+		if (empty($this->_validator) && is_null($instance)) {
+			$this->_validator = new ModelValidator($this);
+		}
+
+		return $this->_validator;
 	}
 
 }
