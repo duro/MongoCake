@@ -190,6 +190,9 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  */
 
 	public function __construct() {
+	  
+	  $this->data = $this;
+	  
 	  if ($this->name === null) {
 			$this->name = (isset($name) ? $name : get_class($this));
 		}
@@ -748,7 +751,6 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 						} else {
 							$this->{$fieldName} = $fieldValue;
 						}
-						$this->data[$modelName][$fieldName] = $this->{$fieldName};
 					}
 				}
 			}
