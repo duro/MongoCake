@@ -63,6 +63,15 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  * @var array
  */
 	public $whitelist = array();
+	
+/**
+ * Container for the data that this model gets from persistent storage (usually, a database).
+ * This is not used by CakeDocument in the same way Model uses it, but is present for CakePHP 2.2 Validation
+ *
+ * @var array
+ * @link http://book.cakephp.org/2.0/en/models/model-attributes.html#data
+ */
+	public $data = array();
 
 /**
  * Name of the property used as document identification
@@ -70,6 +79,21 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  * @var string
  */
 	public $primaryKey = 'id';
+	
+/**
+ * Name of the model.
+ *
+ * @var string
+ * @link http://book.cakephp.org/2.0/en/models/model-attributes.html#name
+ */
+	public $name = null;
+	
+/**
+ * Alias name for model.
+ *
+ * @var string
+ */
+	public $alias = null;
 
 /**
  * List of valid finder method options, supplied as the first parameter to find()
@@ -160,13 +184,20 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 	public $Behaviors = null;
 	
 /**
- * Constructor. Creates an empty BehaviorCollection to make CakeDocument compatible with
- * CakePHP 2.2 Validation
+ * Constructor. Setup class properties
  *
  * @author Adam Duro
  */
 
 	public function __construct() {
+	  if ($this->name === null) {
+			$this->name = (isset($name) ? $name : get_class($this));
+		}
+	  
+	  if ($this->alias === null) {
+			$this->alias = (isset($alias) ? $alias : $this->name);
+		}
+	  
 	  $this->Behaviors = new BehaviorCollection();
 	}
 
@@ -717,6 +748,7 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 						} else {
 							$this->{$fieldName} = $fieldValue;
 						}
+						$this->data[$modelName][$fieldName] = $this->{$fieldName};
 					}
 				}
 			}
