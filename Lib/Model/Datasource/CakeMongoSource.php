@@ -12,6 +12,7 @@ use Doctrine\Common\Annotations\AnnotationReader,
 
 App::uses('DataSource', 'Model/Datasource');
 App::uses('QueryProxy', 'MongoCake.Query');
+App::uses('CakeEvent', 'Event');
 
 /**
  * DataSource responsible for connecting to MongoDB using the Doctrine Mongo ODM adapter
@@ -278,8 +279,10 @@ class CakeMongoSource extends DataSource {
 		if ($document->hasField('created') && $schema['created']['type'] == 'date') {
 			$document->created = new DateTime();
 		}
-		$continue = $document->beforeSave(false);
-		if (!$continue) {
+		$event = new CakeEvent('Model.beforeSave', $this, array(false));
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
+		if (!$event->result) {
 			throw new OperationCancelledException();
 		}
 	}
@@ -291,7 +294,10 @@ class CakeMongoSource extends DataSource {
  * @return void
  */
 	public function postPersist(\Doctrine\ODM\MongoDB\Event\LifecycleEventArgs $eventArgs) {
-		$eventArgs->getDocument()->afterSave(false);
+		$document = $eventArgs->getDocument();
+		$event = new CakeEvent('Model.afterSave', $this, array(false));
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
 	}
 
 /**
@@ -308,8 +314,10 @@ class CakeMongoSource extends DataSource {
 		if ($document->hasField('modified') && $schema['modified']['type'] == 'date') {
 			$document->modified = new DateTime();
 		}
-		$continue = $document->beforeSave(true);
-		if (!$continue) {
+		$event = new CakeEvent('Model.beforeSave', $this, array(true));
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
+		if (!$event->result) {
 			throw new OperationCancelledException();
 		}
 
@@ -325,7 +333,10 @@ class CakeMongoSource extends DataSource {
  * @return void
  */
 	public function postUpdate(\Doctrine\ODM\MongoDB\Event\LifecycleEventArgs $eventArgs) {
-		$eventArgs->getDocument()->afterSave(true);
+		$document = $eventArgs->getDocument();
+		$event = new CakeEvent('Model.beforeSave', $this, array(true));
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
 	}
 
 /**
@@ -335,8 +346,11 @@ class CakeMongoSource extends DataSource {
  * @return void
  */
 	public function preRemove(\Doctrine\ODM\MongoDB\Event\LifecycleEventArgs $eventArgs) {
-		$continue = $eventArgs->getDocument()->beforeDelete();
-		if (!$continue) {
+		$document = $eventArgs->getDocument();
+		$event = new CakeEvent('Model.beforeDelete', $this, array());
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
+		if (!$event->result) {
 			throw new OperationCancelledException();
 		}
 	}
@@ -348,7 +362,10 @@ class CakeMongoSource extends DataSource {
  * @return void
  */
 	public function postRemove(\Doctrine\ODM\MongoDB\Event\LifecycleEventArgs $eventArgs) {
-		$eventArgs->getDocument()->afterDelete();
+		$document = $eventArgs->getDocument();
+		$event = new CakeEvent('Model.afterDelete', $this, array());
+		list($event->break, $event->breakOn) = array(true, array(false, null));
+		$document->getEventManager()->dispatch($event);
 	}
 
 /**

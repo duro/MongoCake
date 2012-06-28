@@ -4,7 +4,11 @@ use Doctrine\ODM\MongoDB\UnitOfWork;
 
 App::uses('ConnectionManager', 'Model');
 App::uses('Validation', 'Utility');
-App::uses('ModelValidator', 'Model');
+App::uses('CakeDocumentValidator', 'MongoCake.Model');
+App::uses('CakeEvent', 'Event');
+App::uses('CakeEventListener', 'Event');
+App::uses('CakeEventManager', 'Event');
+App::uses('BehaviorCollection', 'Model');
 
 /**
  * This class is meant to be an almost API compatible replacement for the 
@@ -22,7 +26,7 @@ App::uses('ModelValidator', 'Model');
  *
  * @package MongoCake.Model
  */
-abstract class CakeDocument implements ArrayAccess {
+abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 
 /**
  * Specifies which connection name to use for this instance
@@ -131,11 +135,40 @@ abstract class CakeDocument implements ArrayAccess {
 	protected $_schema = array();
 	
 /**
+ * Instance of the CakeEventManager this model is using
+ * to dispatch inner events.
+ *
+ * @var CakeEventManager
+ */
+	protected $_eventManager = null;
+	
+/**
  * Instance of the ModelValidator
  *
- * @var ModelValidator
+ * @var CakeDocumentValidator
  */
 	protected $_validator = null;
+	
+/**
+ * Holds the Behavior objects currently bound to this model.
+ * NOTE: Behavior functionality NOT implemented in CakeDocument.
+ *
+ * This is only implemented to allow the 2.2 Validation method to be used
+ *
+ * @var BehaviorCollection
+ */
+	public $Behaviors = null;
+	
+/**
+ * Constructor. Creates an empty BehaviorCollection to make CakeDocument compatible with
+ * CakePHP 2.2 Validation
+ *
+ * @author Adam Duro
+ */
+
+	public function __construct() {
+	  $this->Behaviors = new BehaviorCollection();
+	}
 
 /**
  * Magic method to proxy calls to special finder methods when called as static functions
@@ -402,6 +435,41 @@ abstract class CakeDocument implements ArrayAccess {
 	public function getRepository() {
 		return $this->getDocumentManager()->getRepository(get_class($this));
 	}
+	
+/**
+ * Returns a list of all events that will fire in the model during it's lifecycle.
+ * You can override this function to add you own listener callbacks
+ *
+ * @return array
+ */
+	public function implementedEvents() {
+		return array(
+			'Model.beforeFind' => array('callable' => 'beforeFind', 'passParams' => true),
+			'Model.afterFind' => array('callable' => 'afterFind', 'passParams' => true),
+			'Model.beforeValidate' => array('callable' => 'beforeValidate', 'passParams' => true),
+			'Model.afterValidate' => array('callable' => 'afterValidate'),
+			'Model.beforeSave' => array('callable' => 'beforeSave', 'passParams' => true),
+			'Model.afterSave' => array('callable' => 'afterSave', 'passParams' => true),
+			'Model.beforeDelete' => array('callable' => 'beforeDelete', 'passParams' => true),
+			'Model.afterDelete' => array('callable' => 'afterDelete'),
+		);
+	}
+	
+/**
+ * Returns the CakeEventManager manager instance that is handling any callbacks.
+ * You can use this instance to register any new listeners or callbacks to the
+ * model events, or create your own events and trigger them at will.
+ *
+ * @return CakeEventManager
+ */
+	public function getEventManager() {
+		if (empty($this->_eventManager)) {
+			$this->_eventManager = new CakeEventManager();
+			$this->_eventManager->attach($this->Behaviors);
+			$this->_eventManager->attach($this);
+		}
+		return $this->_eventManager;
+	}
 
 /**
  * Calling this function is required in order to actually persist your changes in to
@@ -486,7 +554,8 @@ abstract class CakeDocument implements ArrayAccess {
  * @param boolean $isUpdate, whether this object was just created or updated
  * @return void
  */
-	public function afterSave($isUpdate) {}
+	public function afterSave($isUpdate) {
+	}
 
 /**
  * Callback fired just before an object is deleted when calling the flush() operation
@@ -504,7 +573,8 @@ abstract class CakeDocument implements ArrayAccess {
  *
  * @return void
  */
-	public function afterDelete() {}
+	public function afterDelete() {
+	}
 
 /**
  * Called during validation operations, before validation. Please note that custom
@@ -1050,12 +1120,12 @@ abstract class CakeDocument implements ArrayAccess {
  * @return ModelValidator
  */
 	public function validator($instance = null) {
-		if ($instance instanceof ModelValidator) {
+		if ($instance instanceof CakeDocumentValidator) {
 			return $this->_validator = $instance;
 		}
 
 		if (empty($this->_validator) && is_null($instance)) {
-			$this->_validator = new ModelValidator($this);
+			$this->_validator = new CakeDocumentValidator($this);
 		}
 
 		return $this->_validator;
