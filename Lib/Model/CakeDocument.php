@@ -156,17 +156,6 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  * @var CakeDocumentValidator
  */
 	protected $_validator = null;
-	
-/**
- * Constructor. Setup class properties
- *
- * @author Adam Duro
- */
-
-	public function __construct() {
-	  
-	  
-	}
 
 /**
  * Magic method to proxy calls to special finder methods when called as static functions
