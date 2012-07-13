@@ -63,15 +63,6 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  * @var array
  */
 	public $whitelist = array();
-	
-/**
- * Container for the data that this model gets from persistent storage (usually, a database).
- * This is not used by CakeDocument in the same way Model uses it, but is present for CakePHP 2.2 Validation
- *
- * @var array
- * @link http://book.cakephp.org/2.0/en/models/model-attributes.html#data
- */
-	public $data = array();
 
 /**
  * Name of the property used as document identification
@@ -87,13 +78,6 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
  * @link http://book.cakephp.org/2.0/en/models/model-attributes.html#name
  */
 	public $name = null;
-	
-/**
- * Alias name for model.
- *
- * @var string
- */
-	public $alias = null;
 
 /**
  * List of valid finder method options, supplied as the first parameter to find()
@@ -174,16 +158,6 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 	protected $_validator = null;
 	
 /**
- * Holds the Behavior objects currently bound to this model.
- * NOTE: Behavior functionality NOT implemented in CakeDocument.
- *
- * This is only implemented to allow the 2.2 Validation method to be used
- *
- * @var BehaviorCollection
- */
-	public $Behaviors = null;
-	
-/**
  * Constructor. Setup class properties
  *
  * @author Adam Duro
@@ -191,17 +165,7 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 
 	public function __construct() {
 	  
-	  $this->data = $this;
 	  
-	  if ($this->name === null) {
-			$this->name = (isset($name) ? $name : get_class($this));
-		}
-	  
-	  if ($this->alias === null) {
-			$this->alias = (isset($alias) ? $alias : $this->name);
-		}
-	  
-	  $this->Behaviors = new BehaviorCollection();
 	}
 
 /**
@@ -250,6 +214,18 @@ abstract class CakeDocument implements ArrayAccess, CakeEventListener {
 	public function __get($property) {
 		if ($property === 'hasAndBelongsToMany') {
 			return array();
+		}
+		// Required to comply with Cake 2.2 validation style
+		if ($property === 'Behaviors') {
+			return new BehaviorCollection();
+		}
+		// Required to comply with Cake 2.2 validation style
+		if ($property === 'alias') {
+			return get_class($this);
+		}
+		// Required to comply with Cake 2.2 validation style
+		if ($property === 'data') {
+			return $this;
 		}
 		if (method_exists($this, 'get' . $property)) {
 			return $this->{'get'.$property}();
